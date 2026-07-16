@@ -146,7 +146,7 @@
     font-family:var(--mono); font-size:13px; width:96px; padding:9px 8px;
     border:1px solid var(--line); background:var(--panel); border-radius:var(--radius);
   }
-  .check{font-family:var(--mono); font-size:12px; display:flex; gap:7px; align-items:center; cursor:pointer}
+  .check{font-family:var(--mono); font-size:12px; display:flex; gap:7px; align-items:center; cursor:pointer; user-select:none}
   .note{
     font-size:13px; color:var(--mute); margin-top:14px; padding-left:12px;
     border-left:2px solid var(--red);
@@ -173,12 +173,18 @@
 
   /* ---------- results ---------- */
   #results{display:grid; grid-template-columns:repeat(auto-fill, minmax(150px,1fr)); gap:10px; margin-top:4px}
-  .card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:10px}
+  .card{
+    background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:10px;
+    transition: opacity .15s, border-color .15s;
+  }
+  .card.deselected{ opacity:0.45; border-color:var(--concrete-dim); }
   .thumb{
     background:var(--concrete); border:1px solid var(--line); height:150px;
     display:flex; align-items:center; justify-content:center; overflow:hidden; margin-bottom:8px;
+    cursor:zoom-in; transition:border-color .12s; position:relative;
   }
-  .thumb img{max-width:100%; max-height:100%; display:block}
+  .thumb:hover{border-color:var(--blue)}
+  .thumb img{max-width:100%; max-height:100%; display:block; pointer-events:none}
   .card .fname{font-family:var(--mono); font-size:10.5px; word-break:break-all; line-height:1.35}
   .card .sz{font-family:var(--mono); font-size:10px; color:var(--mute); margin:3px 0 8px}
   .card a{
@@ -189,6 +195,54 @@
   .card a:hover{background:var(--blue)}
   .empty{font-family:var(--mono); font-size:12px; color:var(--mute)}
   footer{padding:32px 0; font-family:var(--mono); font-size:11px; color:var(--mute); line-height:1.7}
+
+  /* card checkbox */
+  .card-chk{
+    position:absolute; top:6px; left:6px; z-index:2;
+    background:rgba(255, 255, 255, 0.92);
+    border:1px solid var(--line); border-radius:2px;
+    width:26px; height:26px; display:flex; align-items:center; justify-content:center;
+    cursor:pointer; box-shadow:0 1px 3px rgba(0,0,0,0.15);
+  }
+  .card-chk:hover{border-color:var(--blue); background:#fff}
+  .card-chk input{width:15px; height:15px; accent-color:var(--blue); cursor:pointer; margin:0}
+
+  /* ---------- modal preview & zoom ---------- */
+  .modal{
+    position:fixed; inset:0; z-index:9999;
+    background:rgba(14, 18, 22, 0.92);
+    backdrop-filter:blur(8px);
+    display:flex; flex-direction:column;
+  }
+  .modal[hidden]{display:none !important}
+  .modal-bar{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:12px 24px; background:var(--ink); color:var(--panel);
+    border-bottom:1px solid rgba(255,255,255,0.1); user-select:none;
+  }
+  .modal-title{font-family:var(--mono); font-size:13px; font-weight:700; color:#fff}
+  .modal-tools{display:flex; gap:8px; align-items:center}
+  .modal-btn{
+    background:rgba(255,255,255,0.15); border:0; color:#fff;
+    width:34px; height:34px; border-radius:var(--radius);
+    cursor:pointer; font-family:var(--mono); font-size:16px; font-weight:700;
+    display:flex; align-items:center; justify-content:center;
+    transition:background .12s;
+  }
+  .modal-btn:hover{background:var(--blue)}
+  .modal-btn.close{background:var(--red); margin-left:8px}
+  .zoom-val{font-family:var(--mono); font-size:12px; width:54px; text-align:center; color:var(--concrete-dim)}
+  .modal-body{
+    flex:1; overflow:hidden; display:flex; align-items:center; justify-content:center;
+    cursor:grab; position:relative; user-select:none;
+  }
+  .modal-body:active{cursor:grabbing}
+  #modalImg{
+    max-width:90vw; max-height:85vh; object-fit:contain;
+    transition:transform 0.08s ease-out;
+    transform-origin:center center;
+    pointer-events:none;
+  }
   @media (prefers-reduced-motion:reduce){*{transition:none !important}}
 </style>
 </head>
@@ -262,8 +316,11 @@
   <div class="head"><span class="num">04</span><h2>Kết quả</h2><span class="hint" id="count"></span></div>
   <div class="bar" style="padding-top:0; padding-bottom:20px">
     <button class="btn" id="run" disabled>Resize</button>
-    <button class="btn ghost" id="zip" disabled>Tải tất cả (.zip)</button>
-    <span class="status" id="status">Chưa có ảnh nào.</span>
+    <button class="btn ghost" id="zip" disabled>Tải ảnh đã chọn (.zip)</button>
+    <label class="check" id="selectAllWrap" style="margin-left:8px; font-weight:700; color:var(--blue)" hidden>
+      <input type="checkbox" id="selectAll" checked> Chọn tất cả
+    </label>
+    <span class="status" id="status" style="margin-left:auto">Chưa có ảnh nào.</span>
   </div>
   <div id="results"><p class="empty">Kết quả sẽ hiện ở đây.</p></div>
 </section>
@@ -276,12 +333,29 @@
 
 </div>
 
+<!-- Lightbox Modal Preview -->
+<div class="modal" id="previewModal" hidden>
+  <div class="modal-bar">
+    <span class="modal-title" id="modalTitle"></span>
+    <div class="modal-tools">
+      <button class="modal-btn" id="zoomOut" title="Thu nhỏ (−)">−</button>
+      <span class="zoom-val" id="zoomVal">100%</span>
+      <button class="modal-btn" id="zoomIn" title="Phóng to (+)">+</button>
+      <button class="modal-btn" id="zoomReset" title="Khôi phục kích thước ban đầu">⟲</button>
+      <button class="modal-btn close" id="modalClose" title="Đóng (Esc)">✕</button>
+    </div>
+  </div>
+  <div class="modal-body" id="modalBody" title="Kéo để di chuyển, lăn chuột để phóng to/thu nhỏ">
+    <img id="modalImg" src="" alt="">
+  </div>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
 /* ============ dữ liệu khung đích ============ */
 const PRESETS = [
   { g:'iPhone — dọc · ô “6.9″ Display”', items:[
-    { w:1260, h:2736, who:'iPhone Air', star:true, on:true }, // Chỉ để 1 mặc định được chọn
+    { w:1260, h:2736, who:'iPhone Air', star:true, on:true },
     { w:1320, h:2868, who:'17 / 16 Pro Max' },
     { w:1290, h:2796, who:'6.7″ Plus' },
   ]},
@@ -291,7 +365,7 @@ const PRESETS = [
     { w:2796, h:1290, who:'6.7″ Plus landscape' },
   ]},
   { g:'iPad — dọc', items:[
-    { w:2064, h:2752, who:'13″ · iPad Pro M4', star:true }, // Đã bỏ on:true
+    { w:2064, h:2752, who:'13″ · iPad Pro M4', star:true },
     { w:2048, h:2732, who:'12.9″ · iPad Pro' },
     { w:1668, h:2388, who:'11″ · iPad Pro / Air' },
     { w:1640, h:2360, who:'10.9″ · iPad Air' },
@@ -308,14 +382,14 @@ const PRESETS = [
 ];
 
 const state = {
-  files: [],            // {name, img}
-  targets: new Map(),   // key -> {w,h,on}
-  fit: 'cover',         // Đã đổi default từ 'contain' sang 'cover'
+  files: [],
+  targets: new Map(),
+  fit: 'cover',
   fmt: 'png',
   quality: 0.92,
   bg: '#FFFFFF',
   autoBg: true,
-  outputs: [],          // {name, blob, url, w, h}
+  outputs: [],          // {name, blob, url, w, h, selected}
 };
 
 const $ = s => document.querySelector(s);
@@ -350,14 +424,12 @@ function buildTargets(){
     const t = e.target.closest('.tile'); if(!t) return;
     const k = t.dataset.k;
     
-    // Đặt lại toàn bộ mục target khác về false (Chỉ chọn 1)
     state.targets.forEach(rec => rec.on = false);
     document.querySelectorAll('.tile').forEach(tile => {
       tile.classList.remove('on');
       tile.querySelector('input').checked = false;
     });
 
-    // Bật target hiện tại
     const rec = state.targets.get(k);
     rec.on = true;
     t.classList.add('on');
@@ -386,13 +458,11 @@ function tile(p){
   </label>`;
 }
 
-/* thêm khung tự nhập (chỉ chọn duy nhất khung vừa thêm) */
 $('#addCustom').addEventListener('click', () => {
   const w = parseInt($('#cw').value, 10), h = parseInt($('#ch').value, 10);
   if (!w || !h || w < 1 || h < 1) { $('#cw').focus(); return; }
   const k = `${w}x${h}`;
   
-  // Reset các ô khác trước khi chọn ô custom mới
   state.targets.forEach(rec => rec.on = false);
   document.querySelectorAll('.tile').forEach(tile => {
     tile.classList.remove('on');
@@ -552,6 +622,21 @@ function draw(img, tw, th, bg){
 const toBlob = (c) => new Promise(r => c.toBlob(r, state.fmt === 'jpeg' ? 'image/jpeg' : 'image/png',
                                                 state.fmt === 'jpeg' ? state.quality : undefined));
 
+/* Cập nhật trạng thái hiển thị của các nút tải theo số lượng được chọn */
+function updateSelectionUI() {
+  const selCount = state.outputs.filter(o => o.selected).length;
+  const total = state.outputs.length;
+  
+  $('#zip').disabled = (selCount === 0);
+  $('#zip').textContent = selCount > 0 ? `Tải ${selCount} ảnh đã chọn (.zip)` : 'Tải ảnh đã chọn (.zip)';
+  $('#selectAllWrap').hidden = (total === 0);
+  
+  if (total > 0) {
+    $('#selectAll').checked = (selCount === total);
+    $('#selectAll').indeterminate = (selCount > 0 && selCount < total);
+  }
+}
+
 $('#run').addEventListener('click', async () => {
   const chosen = [...state.targets.values()].filter(t => t.on);
   state.outputs.forEach(o => URL.revokeObjectURL(o.url));
@@ -571,10 +656,17 @@ $('#run').addEventListener('click', async () => {
       const blob = await toBlob(draw(f.img, t.w, t.h, bg));
       const url = URL.createObjectURL(blob);
       const name = `${base}_${t.w}x${t.h}px.${ext}`;
-      state.outputs.push({ name, blob, url, w:t.w, h:t.h });
+      const idx = state.outputs.length;
+      
+      state.outputs.push({ name, blob, url, w:t.w, h:t.h, selected: true });
       $('#results').insertAdjacentHTML('beforeend', `
-        <div class="card">
-          <div class="thumb"><img src="${url}" alt=""></div>
+        <div class="card" data-idx="${idx}">
+          <div class="thumb" data-url="${url}" data-name="${escapeHtml(name)}" title="Bấm để xem ảnh lớn">
+            <label class="card-chk" title="Chọn/Bỏ chọn ảnh này" onclick="event.stopPropagation()">
+              <input type="checkbox" class="sel-input" checked>
+            </label>
+            <img src="${url}" alt="">
+          </div>
           <div class="fname">${escapeHtml(name)}</div>
           <div class="sz">${t.w}×${t.h} · ${(blob.size/1024).toFixed(0)} KB</div>
           <a href="${url}" download="${escapeHtml(name)}">Tải về</a>
@@ -583,25 +675,147 @@ $('#run').addEventListener('click', async () => {
   }
   $('#status').textContent = `Xong — ${state.outputs.length} file.`;
   $('#run').disabled = false;
-  $('#zip').disabled = !state.outputs.length;
+  updateSelectionUI();
 });
 
+/* Sự kiện chọn từng ảnh */
+$('#results').addEventListener('change', e => {
+  if (!e.target.matches('.sel-input')) return;
+  const card = e.target.closest('.card');
+  const idx = +card.dataset.idx;
+  if (state.outputs[idx]) {
+    state.outputs[idx].selected = e.target.checked;
+    card.classList.toggle('deselected', !e.target.checked);
+  }
+  updateSelectionUI();
+});
+
+/* Sự kiện nút "Chọn tất cả" */
+$('#selectAll').addEventListener('change', e => {
+  const chk = e.target.checked;
+  state.outputs.forEach(o => o.selected = chk);
+  document.querySelectorAll('.card').forEach(card => {
+    card.classList.toggle('deselected', !chk);
+    const input = card.querySelector('.sel-input');
+    if (input) input.checked = chk;
+  });
+  updateSelectionUI();
+});
+
+/* Tải file (.zip) với các ảnh được chọn */
 $('#zip').addEventListener('click', async () => {
+  const selectedOutputs = state.outputs.filter(o => o.selected);
+  if (!selectedOutputs.length) return;
+
   if (typeof JSZip === 'undefined') {
-    $('#status').textContent = 'Không tải được thư viện zip (cần mạng). Hãy tải từng file bên dưới.';
+    $('#status').textContent = 'Không tải được thư viện zip (cần mạng). Hãy tải lẻ từng file bên dưới.';
     return;
   }
   $('#zip').disabled = true; $('#status').textContent = 'Đang nén…';
   const zip = new JSZip();
-  state.outputs.forEach(o => zip.file(o.name, o.blob));
+  selectedOutputs.forEach(o => zip.file(o.name, o.blob));
   const blob = await zip.generateAsync({ type:'blob' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = 'app-store-screenshots.zip';
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-  $('#zip').disabled = false; $('#status').textContent = `Xong — ${state.outputs.length} file.`;
+  updateSelectionUI(); 
+  $('#status').textContent = `Xong — đã tải ${selectedOutputs.length} file.`;
 });
+
+/* ============ logic xem ảnh lớn (Lightbox Zoom/Pan) ============ */
+const modal = $('#previewModal');
+const modalImg = $('#modalImg');
+let zoomScale = 1, panX = 0, panY = 0;
+let isDragging = false, startX = 0, startY = 0;
+
+function updateTransform() {
+  modalImg.style.transform = `translate(${panX}px, ${panY}px) scale(${zoomScale})`;
+  $('#zoomVal').textContent = `${Math.round(zoomScale * 100)}%`;
+}
+
+function resetZoom() {
+  zoomScale = 1; panX = 0; panY = 0;
+  updateTransform();
+}
+
+function openModal(url, name) {
+  modalImg.src = url;
+  $('#modalTitle').textContent = name;
+  resetZoom();
+  modal.hidden = false;
+}
+
+function closeModal() {
+  modal.hidden = true;
+  modalImg.src = '';
+  isDragging = false;
+}
+
+$('#results').addEventListener('click', e => {
+  if (e.target.closest('.card-chk')) return; // Ngăn chặn mở preview khi bấm vào Checkbox
+  const thumb = e.target.closest('.thumb');
+  if (!thumb) return;
+  openModal(thumb.dataset.url, thumb.dataset.name);
+});
+
+$('#modalClose').addEventListener('click', closeModal);
+$('#zoomReset').addEventListener('click', resetZoom);
+$('#zoomIn').addEventListener('click', () => { zoomScale = Math.min(15, zoomScale * 1.3); updateTransform(); });
+$('#zoomOut').addEventListener('click', () => { zoomScale = Math.max(0.1, zoomScale / 1.3); updateTransform(); });
+
+$('#modalBody').addEventListener('click', e => {
+  if (e.target === $('#modalBody') && !isDragging) closeModal();
+});
+
+window.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !modal.hidden) closeModal();
+});
+
+$('#modalBody').addEventListener('wheel', e => {
+  e.preventDefault();
+  const delta = e.deltaY < 0 ? 1.15 : 0.85;
+  zoomScale = Math.max(0.1, Math.min(15, zoomScale * delta));
+  updateTransform();
+}, { passive: false });
+
+$('#modalBody').addEventListener('mousedown', e => {
+  if (e.button !== 0) return;
+  isDragging = true;
+  startX = e.clientX - panX;
+  startY = e.clientY - panY;
+  $('#modalBody').style.cursor = 'grabbing';
+});
+
+window.addEventListener('mousemove', e => {
+  if (!isDragging) return;
+  panX = e.clientX - startX;
+  panY = e.clientY - startY;
+  updateTransform();
+});
+
+window.addEventListener('mouseup', () => {
+  isDragging = false;
+  $('#modalBody').style.cursor = 'grab';
+});
+
+$('#modalBody').addEventListener('touchstart', e => {
+  if (e.touches.length === 1) {
+    isDragging = true;
+    startX = e.touches[0].clientX - panX;
+    startY = e.touches[0].clientY - panY;
+  }
+}, { passive: true });
+
+window.addEventListener('touchmove', e => {
+  if (!isDragging || e.touches.length !== 1) return;
+  panX = e.touches[0].clientX - startX;
+  panY = e.touches[0].clientY - startY;
+  updateTransform();
+}, { passive: true });
+
+window.addEventListener('touchend', () => { isDragging = false; });
 
 buildTargets();
 refresh();
