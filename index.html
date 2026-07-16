@@ -1,205 +1,612 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Công cụ tạo Asset Folder cho iOS</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: #f0f2f5;
-            color: #1c1e21;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            margin: 0;
-            padding: 20px;
-            box-sizing: border-box;
-        }
-        .container {
-            background-color: #ffffff;
-            padding: 30px 40px;
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-            max-width: 550px;
-            width: 100%;
-            text-align: center;
-        }
-        h1 {
-            font-size: 24px;
-            margin-bottom: 10px;
-            color: #007aff;
-        }
-        p {
-            font-size: 16px;
-            color: #606770;
-            margin-bottom: 25px;
-            line-height: 1.5;
-        }
-        .upload-btn-wrapper {
-            position: relative;
-            overflow: hidden;
-            display: inline-block;
-            cursor: pointer;
-        }
-        .btn {
-            border: none;
-            color: white;
-            background-color: #007aff;
-            padding: 12px 24px;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: background-color 0.2s, opacity 0.2s;
-        }
-        .btn:hover {
-            background-color: #0056b3;
-        }
-        .btn.disabled {
-            background-color: #a0a0a0;
-            cursor: not-allowed;
-        }
-        .upload-btn-wrapper input[type=file] {
-            font-size: 100px;
-            position: absolute;
-            left: 0;
-            top: 0;
-            opacity: 0;
-            cursor: pointer;
-        }
-        #status {
-            margin-top: 20px;
-            font-size: 15px;
-            color: #3aa14a;
-            font-weight: 500;
-            height: 20px;
-        }
-    </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Resize Screenshot — iPhone &amp; iPad</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --concrete:#DEE2E4;
+    --concrete-dim:#CDD4D7;
+    --ink:#0E1216;
+    --panel:#FFFFFF;
+    --line:#C3CBCF;
+    --blue:#1A2AF0;
+    --red:#E5322A;
+    --mute:#6C7A82;
+    --radius:3px;
+    --mono:'JetBrains Mono', ui-monospace, monospace;
+    --sans:'Archivo', system-ui, -apple-system, sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    background:var(--concrete);
+    color:var(--ink);
+    font-family:var(--sans);
+    font-size:15px;
+    line-height:1.5;
+    padding:0 24px 96px;
+    background-image:linear-gradient(var(--concrete-dim) 1px, transparent 1px),
+                     linear-gradient(90deg, var(--concrete-dim) 1px, transparent 1px);
+    background-size:32px 32px;
+    background-position:-1px -1px;
+  }
+  .wrap{max-width:1080px; margin:0 auto}
+
+  /* ---------- header ---------- */
+  header{padding:56px 0 40px; border-bottom:2px solid var(--ink)}
+  .eyebrow{
+    font-family:var(--mono); font-size:11px; font-weight:500;
+    letter-spacing:.16em; text-transform:uppercase; color:var(--blue);
+    display:flex; gap:10px; align-items:center; margin-bottom:18px;
+  }
+  .eyebrow::after{content:''; flex:1; height:1px; background:var(--line)}
+  h1{
+    font-stretch:125%; font-weight:800; letter-spacing:-.02em;
+    font-size:clamp(34px, 6.2vw, 66px); line-height:.94; text-transform:uppercase;
+  }
+  h1 em{font-style:normal; color:var(--blue)}
+  .lede{margin-top:20px; max-width:56ch; color:var(--mute); font-size:16px}
+
+  /* ---------- sections ---------- */
+  section{padding:36px 0; border-bottom:1px solid var(--line)}
+  .head{display:flex; align-items:baseline; gap:14px; margin-bottom:20px}
+  .num{
+    font-family:var(--mono); font-size:11px; font-weight:700; color:var(--panel);
+    background:var(--ink); padding:3px 6px; letter-spacing:.06em;
+  }
+  h2{font-stretch:112%; font-size:19px; font-weight:700; letter-spacing:.01em; text-transform:uppercase}
+  .head .hint{font-family:var(--mono); font-size:11px; color:var(--mute); margin-left:auto}
+
+  /* ---------- dropzone ---------- */
+  .drop{
+    background:var(--panel); border:2px dashed var(--line); border-radius:var(--radius);
+    padding:44px 24px; text-align:center; cursor:pointer;
+    transition:border-color .12s, background .12s;
+  }
+  .drop:hover, .drop:focus-visible{border-color:var(--blue); outline:none}
+  .drop.hot{border-color:var(--blue); border-style:solid; background:#F2F3FF}
+  .drop b{display:block; font-stretch:112%; font-size:17px; font-weight:700}
+  .drop span{font-family:var(--mono); font-size:11px; color:var(--mute); letter-spacing:.05em}
+  .files{margin-top:14px; display:flex; flex-wrap:wrap; gap:6px}
+  .chip{
+    font-family:var(--mono); font-size:11px; background:var(--panel);
+    border:1px solid var(--line); padding:4px 8px; display:flex; gap:8px; align-items:center;
+  }
+  .chip i{font-style:normal; color:var(--mute)}
+  .chip button{
+    border:0; background:none; cursor:pointer; color:var(--red);
+    font-family:var(--mono); font-size:12px; line-height:1; padding:0;
+  }
+
+  /* ---------- targets ---------- */
+  .group + .group{margin-top:26px}
+  .group-label{
+    font-family:var(--mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--mute); display:flex; align-items:center; gap:10px; margin-bottom:12px;
+  }
+  .group-label::after{content:''; flex:1; height:1px; background:var(--line)}
+  .grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(168px,1fr)); gap:8px}
+  .tile{
+    background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
+    padding:12px; cursor:pointer; display:flex; gap:12px; align-items:center;
+    transition:border-color .12s, box-shadow .12s; position:relative;
+  }
+  .tile:hover{border-color:var(--mute)}
+  .tile.on{border-color:var(--blue); box-shadow:inset 0 0 0 1px var(--blue)}
+  .tile:focus-within{outline:2px solid var(--blue); outline-offset:2px}
+  .tile input{position:absolute; opacity:0; pointer-events:none}
+  /* to-scale silhouette = the signature */
+  .silo{
+    flex:0 0 auto; width:64px; height:76px; position:relative;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .silo b{
+    display:block; background:var(--concrete); border:1px solid var(--ink); border-radius:2px;
+  }
+  .tile.on .silo b{background:var(--blue); border-color:var(--blue)}
+  .meta{min-width:0}
+  .dims{font-family:var(--mono); font-size:12.5px; font-weight:700; white-space:nowrap}
+  .who{font-size:12px; color:var(--mute); line-height:1.35; margin-top:2px}
+  .ratio{font-family:var(--mono); font-size:10px; color:var(--blue); letter-spacing:.06em; margin-top:4px}
+  .star{color:var(--red)}
+
+  /* custom */
+  .custom{display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:12px}
+  .custom input[type=number]{
+    font-family:var(--mono); font-size:13px; width:96px; padding:8px;
+    border:1px solid var(--line); background:var(--panel); border-radius:var(--radius);
+  }
+  .custom span{font-family:var(--mono); color:var(--mute)}
+
+  /* ---------- options ---------- */
+  .opts{display:grid; grid-template-columns:repeat(auto-fit, minmax(220px,1fr)); gap:20px}
+  .field label{
+    font-family:var(--mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase;
+    color:var(--mute); display:block; margin-bottom:8px;
+  }
+  .seg{display:flex; border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; background:var(--panel)}
+  .seg button{
+    flex:1; border:0; background:none; padding:9px 6px; cursor:pointer;
+    font-family:var(--sans); font-size:13px; font-weight:600; color:var(--mute);
+  }
+  .seg button + button{border-left:1px solid var(--line)}
+  .seg button.on{background:var(--ink); color:var(--panel)}
+  .seg button:focus-visible{outline:2px solid var(--blue); outline-offset:-2px}
+  .bgrow{display:flex; gap:8px; align-items:center}
+  .bgrow input[type=color]{
+    width:44px; height:38px; padding:2px; border:1px solid var(--line);
+    background:var(--panel); border-radius:var(--radius); cursor:pointer;
+  }
+  .bgrow input[type=text]{
+    font-family:var(--mono); font-size:13px; width:96px; padding:9px 8px;
+    border:1px solid var(--line); background:var(--panel); border-radius:var(--radius);
+  }
+  .check{font-family:var(--mono); font-size:12px; display:flex; gap:7px; align-items:center; cursor:pointer}
+  .note{
+    font-size:13px; color:var(--mute); margin-top:14px; padding-left:12px;
+    border-left:2px solid var(--red);
+  }
+  .note b{color:var(--ink)}
+  .qwrap{display:flex; gap:10px; align-items:center}
+  .qwrap input[type=range]{flex:1; accent-color:var(--blue)}
+  .qwrap output{font-family:var(--mono); font-size:12px; width:32px; text-align:right}
+
+  /* ---------- action ---------- */
+  .bar{display:flex; gap:10px; align-items:center; flex-wrap:wrap; padding-top:28px}
+  .btn{
+    font-family:var(--sans); font-stretch:112%; font-weight:700; font-size:14px;
+    letter-spacing:.04em; text-transform:uppercase;
+    background:var(--ink); color:var(--panel); border:0; border-radius:var(--radius);
+    padding:14px 22px; cursor:pointer;
+  }
+  .btn:hover{background:var(--blue)}
+  .btn:disabled{background:var(--line); color:#8F9AA1; cursor:not-allowed}
+  .btn.ghost{background:none; color:var(--ink); border:1px solid var(--ink)}
+  .btn.ghost:hover{background:var(--ink); color:var(--panel)}
+  .btn:focus-visible{outline:2px solid var(--blue); outline-offset:2px}
+  .status{font-family:var(--mono); font-size:12px; color:var(--mute)}
+
+  /* ---------- results ---------- */
+  #results{display:grid; grid-template-columns:repeat(auto-fill, minmax(150px,1fr)); gap:10px; margin-top:4px}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:10px}
+  .thumb{
+    background:var(--concrete); border:1px solid var(--line); height:150px;
+    display:flex; align-items:center; justify-content:center; overflow:hidden; margin-bottom:8px;
+  }
+  .thumb img{max-width:100%; max-height:100%; display:block}
+  .card .fname{font-family:var(--mono); font-size:10.5px; word-break:break-all; line-height:1.35}
+  .card .sz{font-family:var(--mono); font-size:10px; color:var(--mute); margin:3px 0 8px}
+  .card a{
+    display:block; text-align:center; font-family:var(--mono); font-size:11px; font-weight:700;
+    letter-spacing:.06em; text-decoration:none; color:var(--panel); background:var(--ink);
+    padding:7px; border-radius:var(--radius);
+  }
+  .card a:hover{background:var(--blue)}
+  .empty{font-family:var(--mono); font-size:12px; color:var(--mute)}
+  footer{padding:32px 0; font-family:var(--mono); font-size:11px; color:var(--mute); line-height:1.7}
+  @media (prefers-reduced-motion:reduce){*{transition:none !important}}
+</style>
 </head>
 <body>
+<div class="wrap">
 
-    <div class="container">
-        <h1>Tạo Asset Folder (.zip) 🗂️</h1>
-        <p>Tải lên một ảnh bất kỳ (khuyến khích ảnh <strong>@3x</strong>), công cụ sẽ tạo một thư mục chứa cả 3 phiên bản <strong>@1x, @2x, @3x</strong> và nén lại thành file <strong>.zip</strong> cho bạn.</p>
-        
-        <div class="upload-btn-wrapper">
-            <button class="btn" id="uploadButton">Chọn ảnh & Tạo ZIP</button>
-            <input type="file" id="imageInput" accept="image/png, image/jpeg">
-        </div>
+<header>
+  <div class="eyebrow">Chạy trong trình duyệt · Ảnh không rời khỏi máy bạn</div>
+  <h1>Resize<br>Screenshot<br><em>iPhone &amp; iPad</em></h1>
+  <p class="lede">Thả ảnh vào, chọn 1 khung đích, tải về đúng từng pixel. Ảnh luôn được ghép nền phẳng nên không còn kênh alpha — App Store Connect từ chối ảnh có nền trong suốt.</p>
+</header>
 
-        <div id="status"></div>
+<section>
+  <div class="head"><span class="num">01</span><h2>Nguồn</h2><span class="hint">PNG · JPG · WEBP</span></div>
+  <div class="drop" id="drop" tabindex="0" role="button" aria-label="Chọn ảnh screenshot">
+    <b>Thả ảnh vào đây hoặc bấm để chọn</b>
+    <span>chọn được nhiều ảnh cùng lúc</span>
+  </div>
+  <input type="file" id="file" accept="image/*" multiple hidden>
+  <div class="files" id="files"></div>
+</section>
+
+<section>
+  <div class="head"><span class="num">02</span><h2>Khung đích</h2><span class="hint">chọn 1 kích thước</span></div>
+  <div id="targets"></div>
+  <div class="custom">
+    <span>Tự nhập:</span>
+    <input type="number" id="cw" placeholder="rộng" min="1" max="10000" aria-label="Chiều rộng tuỳ chỉnh">
+    <span>×</span>
+    <input type="number" id="ch" placeholder="cao" min="1" max="10000" aria-label="Chiều cao tuỳ chỉnh">
+    <button class="btn ghost" id="addCustom" style="padding:8px 14px">Thêm</button>
+  </div>
+  <p class="note" id="ratioNote" hidden></p>
+</section>
+
+<section>
+  <div class="head"><span class="num">03</span><h2>Cách ghép</h2></div>
+  <div class="opts">
+    <div class="field">
+      <label for="fitSeg">Ảnh không cùng tỉ lệ thì</label>
+      <div class="seg" id="fitSeg">
+        <button data-fit="contain" class="on">Vừa khung</button>
+        <button data-fit="cover">Lấp đầy</button>
+        <button data-fit="stretch">Kéo giãn</button>
+      </div>
     </div>
+    <div class="field">
+      <label for="bgHex">Màu nền viền</label>
+      <div class="bgrow">
+        <input type="color" id="bgColor" value="#ffffff" aria-label="Chọn màu nền">
+        <input type="text" id="bgHex" value="#FFFFFF" spellcheck="false" aria-label="Mã màu nền">
+        <label class="check"><input type="checkbox" id="autoBg" checked> Lấy từ ảnh</label>
+      </div>
+    </div>
+    <div class="field">
+      <label for="fmtSeg">Định dạng</label>
+      <div class="seg" id="fmtSeg">
+        <button data-fmt="png" class="on">PNG</button>
+        <button data-fmt="jpeg">JPEG</button>
+      </div>
+      <div class="qwrap" id="qwrap" hidden style="margin-top:8px">
+        <input type="range" id="q" min="60" max="100" value="92" aria-label="Chất lượng JPEG">
+        <output id="qv">92</output>
+      </div>
+    </div>
+  </div>
+  <p class="note"><b>Vừa khung</b> giữ nguyên toàn bộ ảnh và bù nền hai bên. <b>Lấp đầy</b> cắt bớt phần thừa. <b>Kéo giãn</b> làm méo ảnh — chỉ dùng khi tỉ lệ lệch không đáng kể.</p>
+</section>
 
-    <script>
-        const imageInput = document.getElementById('imageInput');
-        const uploadButton = document.getElementById('uploadButton');
-        const statusDiv = document.getElementById('status');
+<section>
+  <div class="head"><span class="num">04</span><h2>Kết quả</h2><span class="hint" id="count"></span></div>
+  <div class="bar" style="padding-top:0; padding-bottom:20px">
+    <button class="btn" id="run" disabled>Resize</button>
+    <button class="btn ghost" id="zip" disabled>Tải tất cả (.zip)</button>
+    <span class="status" id="status">Chưa có ảnh nào.</span>
+  </div>
+  <div id="results"><p class="empty">Kết quả sẽ hiện ở đây.</p></div>
+</section>
 
-        imageInput.addEventListener('change', async function(event) {
-            const file = event.target.files[0];
-            if (!file) return;
+<footer>
+  Mặc định ★ · iPhone 1260×2736 · iPad 13″ 2064×2752<br>
+  Ô “6.9″ Display” chỉ nhận 1260×2736, 1320×2868, 1290×2796 và bản ngang tương ứng.<br>
+  Apple kiểm tra pixel tuyệt đối và không nhận ảnh có alpha. Kiểm tra lại spec mới nhất trong App Store Connect trước khi nộp.
+</footer>
 
-            // Vô hiệu hóa nút và hiển thị trạng thái
-            uploadButton.classList.add('disabled');
-            uploadButton.textContent = 'Đang xử lý...';
-            statusDiv.textContent = '';
+</div>
 
-            try {
-                const img = await loadImage(file);
-                
-                // Xác định tên gốc và đuôi file
-                const originalName = file.name;
-                const extension = originalName.slice(originalName.lastIndexOf('.'));
-                let baseName = originalName.slice(0, originalName.lastIndexOf('.'));
-                
-                // Xóa các hậu tố @1x, @2x, @3x để lấy tên gốc sạch
-                baseName = baseName.replace(/@\dx$/i, '');
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+/* ============ dữ liệu khung đích ============ */
+const PRESETS = [
+  { g:'iPhone — dọc · ô “6.9″ Display”', items:[
+    { w:1260, h:2736, who:'iPhone Air', star:true, on:true }, // Chỉ để 1 mặc định được chọn
+    { w:1320, h:2868, who:'17 / 16 Pro Max' },
+    { w:1290, h:2796, who:'6.7″ Plus' },
+  ]},
+  { g:'iPhone — ngang · ô “6.9″ Display”', items:[
+    { w:2736, h:1260, who:'iPhone Air landscape' },
+    { w:2868, h:1320, who:'17 / 16 Pro Max landscape' },
+    { w:2796, h:1290, who:'6.7″ Plus landscape' },
+  ]},
+  { g:'iPad — dọc', items:[
+    { w:2064, h:2752, who:'13″ · iPad Pro M4', star:true }, // Đã bỏ on:true
+    { w:2048, h:2732, who:'12.9″ · iPad Pro' },
+    { w:1668, h:2388, who:'11″ · iPad Pro / Air' },
+    { w:1640, h:2360, who:'10.9″ · iPad Air' },
+  ]},
+  { g:'iPad — ngang', items:[
+    { w:2752, h:2064, who:'13″ landscape' },
+    { w:2732, h:2048, who:'12.9″ landscape' },
+  ]},
+  { g:'Tỉ lệ 9:16 (Google Play / social)', items:[
+    { w:1080, h:1920, who:'chuẩn phổ biến nhất' },
+    { w:1440, h:2560, who:'2K' },
+    { w:2160, h:3840, who:'4K' },
+  ]},
+];
 
-                const zip = new JSZip();
-                const folder = zip.folder(baseName);
+const state = {
+  files: [],            // {name, img}
+  targets: new Map(),   // key -> {w,h,on}
+  fit: 'contain',
+  fmt: 'png',
+  quality: 0.92,
+  bg: '#FFFFFF',
+  autoBg: true,
+  outputs: [],          // {name, blob, url, w, h}
+};
 
-                // Thêm file gốc @3x (hoặc file gốc người dùng tải lên) vào zip
-                const file3xName = `${baseName}_3x${extension}`;
-                folder.file(file3xName, file);
+const $ = s => document.querySelector(s);
 
-                // Tạo và thêm file @2x
-                const blob2x = await createScaledBlob(img, 2 / 3, file.type);
-                const file2xName = `${baseName}_2x${extension}`;
-                folder.file(file2xName, blob2x);
+/* ============ vẽ silhouette đúng tỉ lệ ============ */
+function silo(w, h){
+  const box = 62, scale = Math.min(box / w, 74 / h);
+  return `<span class="silo"><b style="width:${Math.max(6, w*scale)}px;height:${Math.max(6, h*scale)}px"></b></span>`;
+}
+function ratioOf(w, h){
+  const g = (a,b) => b ? g(b, a % b) : a;
+  const d = g(w, h);
+  let rw = w/d, rh = h/d;
+  if (rw > 40 || rh > 40) return (w/h).toFixed(3).replace(/0+$/,'') + ' : 1';
+  return `${rw}:${rh}`;
+}
 
-                // Tạo và thêm file @1x
-                const blob1x = await createScaledBlob(img, 1 / 3, file.type);
-                const file1xName = `${baseName}_1x${extension}`;
-                folder.file(file1xName, blob1x);
+function buildTargets(){
+  const host = $('#targets');
+  host.innerHTML = PRESETS.map(group => `
+    <div class="group">
+      <div class="group-label">${group.g}</div>
+      <div class="grid">
+        ${group.items.map(p => tile(p)).join('')}
+      </div>
+    </div>`).join('');
+  PRESETS.forEach(gr => gr.items.forEach(p => {
+    state.targets.set(`${p.w}x${p.h}`, { w:p.w, h:p.h, on: !!p.on });
+  }));
+  
+  host.addEventListener('click', e => {
+    const t = e.target.closest('.tile'); if(!t) return;
+    const k = t.dataset.k;
+    
+    // Đặt lại toàn bộ mục target khác về false (Chỉ chọn 1)
+    state.targets.forEach(rec => rec.on = false);
+    document.querySelectorAll('.tile').forEach(tile => {
+      tile.classList.remove('on');
+      tile.querySelector('input').checked = false;
+    });
 
-                // Tạo file zip và kích hoạt tải xuống
-                statusDiv.textContent = 'Đang nén file zip...';
-                const zipBlob = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
-                
-                const link = document.createElement('a');
-                link.href = URL.createObjectURL(zipBlob);
-                link.download = `${baseName}.zip`;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                URL.revokeObjectURL(link.href);
+    // Bật target hiện tại
+    const rec = state.targets.get(k);
+    rec.on = true;
+    t.classList.add('on');
+    t.querySelector('input').checked = true;
+    
+    refresh();
+  });
+  
+  document.querySelectorAll('.tile').forEach(t => {
+    if (state.targets.get(t.dataset.k).on) {
+      t.classList.add('on');
+      t.querySelector('input').checked = true;
+    }
+  });
+}
 
-                statusDiv.textContent = 'Hoàn tất! File zip đã được tải xuống.';
+function tile(p){
+  // Đổi type="checkbox" thành type="radio" với cùng 1 name để chỉ cho phép chọn 1
+  return `<label class="tile" data-k="${p.w}x${p.h}">
+    <input type="radio" name="target_size">
+    ${silo(p.w, p.h)}
+    <span class="meta">
+      <span class="dims">${p.w} × ${p.h}${p.star ? ' <span class="star">★</span>' : ''}</span>
+      <span class="who">${p.who}</span>
+      <span class="ratio">${ratioOf(p.w, p.h)}</span>
+    </span>
+  </label>`;
+}
 
-            } catch (error) {
-                console.error("Lỗi xử lý ảnh:", error);
-                statusDiv.textContent = 'Đã có lỗi xảy ra. Vui lòng thử lại.';
-            } finally {
-                // Khôi phục lại nút bấm
-                uploadButton.classList.remove('disabled');
-                uploadButton.textContent = 'Chọn ảnh & Tạo ZIP';
-                imageInput.value = ''; // Reset input để có thể chọn lại cùng 1 file
-            }
-        });
-        
-        // Hàm để load ảnh từ file và trả về một Promise
-        function loadImage(file) {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = e => {
-                    const img = new Image();
-                    img.onload = () => resolve(img);
-                    img.onerror = reject;
-                    img.src = e.target.result;
-                };
-                reader.onerror = reject;
-                reader.readAsDataURL(file);
-            });
-        }
+/* thêm khung tự nhập (chỉ chọn duy nhất khung vừa thêm) */
+$('#addCustom').addEventListener('click', () => {
+  const w = parseInt($('#cw').value, 10), h = parseInt($('#ch').value, 10);
+  if (!w || !h || w < 1 || h < 1) { $('#cw').focus(); return; }
+  const k = `${w}x${h}`;
+  
+  // Reset các ô khác trước khi chọn ô custom mới
+  state.targets.forEach(rec => rec.on = false);
+  document.querySelectorAll('.tile').forEach(tile => {
+    tile.classList.remove('on');
+    tile.querySelector('input').checked = false;
+  });
 
-        // Hàm để resize ảnh và trả về một Promise chứa dữ liệu Blob
-        function createScaledBlob(sourceImage, scale, fileType) {
-            return new Promise((resolve, reject) => {
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
-                
-                const newWidth = Math.round(sourceImage.width * scale);
-                const newHeight = Math.round(sourceImage.height * scale);
+  if (state.targets.has(k)) { 
+    state.targets.get(k).on = true; 
+  } else {
+    state.targets.set(k, { w, h, on:true });
+    let grid = document.querySelector('#customGrid');
+    if (!grid) {
+      const g = document.createElement('div');
+      g.className = 'group';
+      g.innerHTML = `<div class="group-label">Tự nhập</div><div class="grid" id="customGrid"></div>`;
+      $('#targets').appendChild(g);
+      grid = document.querySelector('#customGrid');
+    }
+    grid.insertAdjacentHTML('beforeend', tile({ w, h, who:'kích thước tuỳ chỉnh' }));
+  }
+  
+  document.querySelectorAll(`.tile[data-k="${k}"]`).forEach(t => {
+    t.classList.add('on'); t.querySelector('input').checked = true;
+  });
+  $('#cw').value = ''; $('#ch').value = '';
+  refresh();
+});
 
-                canvas.width = newWidth > 0 ? newWidth : 1;
-                canvas.height = newHeight > 0 ? newHeight : 1;
+/* ============ nhận file ============ */
+const drop = $('#drop'), fileInput = $('#file');
+drop.addEventListener('click', () => fileInput.click());
+drop.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); } });
+['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hot'); }));
+['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hot'); }));
+drop.addEventListener('drop', e => addFiles(e.dataTransfer.files));
+fileInput.addEventListener('change', e => { addFiles(e.target.files); fileInput.value = ''; });
 
-                ctx.drawImage(sourceImage, 0, 0, canvas.width, canvas.height);
-                
-                canvas.toBlob(blob => {
-                    if (blob) {
-                        resolve(blob);
-                    } else {
-                        reject(new Error('Không thể tạo blob từ canvas.'));
-                    }
-                }, fileType, 0.95); // 0.95 là chất lượng cho file JPEG
-            });
-        }
+async function addFiles(list){
+  const imgs = [...list].filter(f => f.type.startsWith('image/'));
+  for (const f of imgs) {
+    try {
+      const img = await loadImage(f);
+      state.files.push({ name: f.name, img });
+    } catch (err) {
+      $('#status').textContent = `Không đọc được ${f.name}.`;
+    }
+  }
+  renderFiles(); refresh();
+}
+function loadImage(file){
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => { res(img); };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('decode')); };
+    img.src = url;
+  });
+}
+function renderFiles(){
+  $('#files').innerHTML = state.files.map((f, i) =>
+    `<span class="chip">${escapeHtml(f.name)} <i>${f.img.width}×${f.img.height}</i>
+     <button data-i="${i}" aria-label="Bỏ ảnh">✕</button></span>`).join('');
+}
+$('#files').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  state.files.splice(+b.dataset.i, 1);
+  renderFiles(); refresh();
+});
+function escapeHtml(s){ return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
-    </script>
+/* ============ tuỳ chọn ============ */
+$('#fitSeg').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  state.fit = b.dataset.fit;
+  [...e.currentTarget.children].forEach(x => x.classList.toggle('on', x === b));
+});
+$('#fmtSeg').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  state.fmt = b.dataset.fmt;
+  [...e.currentTarget.children].forEach(x => x.classList.toggle('on', x === b));
+  $('#qwrap').hidden = state.fmt !== 'jpeg';
+});
+$('#q').addEventListener('input', e => { state.quality = e.target.value / 100; $('#qv').textContent = e.target.value; });
+$('#bgColor').addEventListener('input', e => { state.bg = e.target.value.toUpperCase(); $('#bgHex').value = state.bg; $('#autoBg').checked = false; state.autoBg = false; });
+$('#bgHex').addEventListener('change', e => {
+  const v = e.target.value.trim();
+  if (/^#?[0-9a-f]{6}$/i.test(v)) { state.bg = ('#' + v.replace('#','')).toUpperCase(); $('#bgColor').value = state.bg; e.target.value = state.bg; }
+  else e.target.value = state.bg;
+});
+$('#autoBg').addEventListener('change', e => { state.autoBg = e.target.checked; });
 
+/* ============ cảnh báo tỉ lệ ============ */
+function refresh(){
+  const chosen = [...state.targets.values()].filter(t => t.on);
+  $('#run').disabled = !(state.files.length && chosen.length);
+  
+  // Cập nhật text vì lúc này chỉ được chọn 1 kích cỡ
+  $('#count').textContent = state.files.length && chosen.length
+    ? `${state.files.length} ảnh = ${state.files.length} file xuất ra`
+    : '';
+    
+  if (!state.files.length) $('#status').textContent = 'Chưa có ảnh nào.';
+  else if (!chosen.length) $('#status').textContent = 'Hãy chọn 1 khung đích.';
+  else $('#status').textContent = 'Sẵn sàng.';
+
+  const note = $('#ratioNote');
+  const nine = chosen.filter(t => Math.abs((t.w / t.h) - (9/16)) < 0.001);
+  if (nine.length) {
+    note.hidden = false;
+    note.innerHTML = `<b>Lưu ý về 9:16:</b> App Store Connect không nhận tỉ lệ 9:16. Màn iPhone hiện tại là ~9:19.5 (1320×2868) và iPad là 3:4 (2064×2752). Các khung 9:16 ở đây dùng cho Google Play hoặc social — đừng nộp lên App Store.`;
+  } else note.hidden = true;
+}
+
+/* ============ resize ============ */
+function sampleBg(img){
+  try {
+    const c = document.createElement('canvas'); c.width = c.height = 1;
+    const x = c.getContext('2d', { willReadFrequently:true });
+    x.drawImage(img, 2, 2, 1, 1, 0, 0, 1, 1);
+    const d = x.getImageData(0, 0, 1, 1).data;
+    return '#' + [d[0], d[1], d[2]].map(n => n.toString(16).padStart(2, '0')).join('').toUpperCase();
+  } catch { return state.bg; }
+}
+function stepDown(src, tw, th){
+  let cur = src, cw = src.width, chh = src.height;
+  while (cw > tw * 2 && chh > th * 2) {
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, cw >> 1); c.height = Math.max(1, chh >> 1);
+    const x = c.getContext('2d');
+    x.imageSmoothingEnabled = true; x.imageSmoothingQuality = 'high';
+    x.drawImage(cur, 0, 0, c.width, c.height);
+    cur = c; cw = c.width; chh = c.height;
+  }
+  return cur;
+}
+function draw(img, tw, th, bg){
+  const c = document.createElement('canvas');
+  c.width = tw; c.height = th;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, tw, th);
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+
+  const sr = img.width / img.height, tr = tw / th;
+  let sx = 0, sy = 0, sw = img.width, sh = img.height, dx = 0, dy = 0, dw = tw, dh = th;
+
+  if (state.fit === 'contain') {
+    if (sr > tr) { dw = tw; dh = Math.round(tw / sr); } else { dh = th; dw = Math.round(th * sr); }
+    dx = Math.round((tw - dw) / 2); dy = Math.round((th - dh) / 2);
+  } else if (state.fit === 'cover') {
+    if (sr > tr) { sw = img.height * tr; sx = (img.width - sw) / 2; }
+    else { sh = img.width / tr; sy = (img.height - sh) / 2; }
+  }
+  const src = stepDown(img, dw, dh);
+  const k = src.width / img.width;
+  ctx.drawImage(src, sx * k, sy * k, sw * k, sh * k, dx, dy, dw, dh);
+  return c;
+}
+const toBlob = (c) => new Promise(r => c.toBlob(r, state.fmt === 'jpeg' ? 'image/jpeg' : 'image/png',
+                                                state.fmt === 'jpeg' ? state.quality : undefined));
+
+$('#run').addEventListener('click', async () => {
+  const chosen = [...state.targets.values()].filter(t => t.on);
+  state.outputs.forEach(o => URL.revokeObjectURL(o.url));
+  state.outputs = [];
+  $('#results').innerHTML = '';
+  $('#run').disabled = true; $('#zip').disabled = true;
+
+  const ext = state.fmt === 'jpeg' ? 'jpg' : 'png';
+  let n = 0, total = state.files.length * chosen.length;
+
+  for (const f of state.files) {
+    const bg = state.autoBg ? sampleBg(f.img) : state.bg;
+    const base = f.name.replace(/\.[^.]+$/, '');
+    for (const t of chosen) {
+      $('#status').textContent = `Đang xử lý ${++n}/${total}…`;
+      await new Promise(r => requestAnimationFrame(r));
+      const blob = await toBlob(draw(f.img, t.w, t.h, bg));
+      const url = URL.createObjectURL(blob);
+      const name = `${base}_${t.w}x${t.h}px.${ext}`;
+      state.outputs.push({ name, blob, url, w:t.w, h:t.h });
+      $('#results').insertAdjacentHTML('beforeend', `
+        <div class="card">
+          <div class="thumb"><img src="${url}" alt=""></div>
+          <div class="fname">${escapeHtml(name)}</div>
+          <div class="sz">${t.w}×${t.h} · ${(blob.size/1024).toFixed(0)} KB</div>
+          <a href="${url}" download="${escapeHtml(name)}">Tải về</a>
+        </div>`);
+    }
+  }
+  $('#status').textContent = `Xong — ${state.outputs.length} file.`;
+  $('#run').disabled = false;
+  $('#zip').disabled = !state.outputs.length;
+});
+
+$('#zip').addEventListener('click', async () => {
+  if (typeof JSZip === 'undefined') {
+    $('#status').textContent = 'Không tải được thư viện zip (cần mạng). Hãy tải từng file bên dưới.';
+    return;
+  }
+  $('#zip').disabled = true; $('#status').textContent = 'Đang nén…';
+  const zip = new JSZip();
+  state.outputs.forEach(o => zip.file(o.name, o.blob));
+  const blob = await zip.generateAsync({ type:'blob' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'app-store-screenshots.zip';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  $('#zip').disabled = false; $('#status').textContent = `Xong — ${state.outputs.length} file.`;
+});
+
+buildTargets();
+refresh();
+</script>
 </body>
 </html>
