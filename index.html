@@ -230,8 +230,8 @@
     <div class="field">
       <label for="fitSeg">Ảnh không cùng tỉ lệ thì</label>
       <div class="seg" id="fitSeg">
-        <button data-fit="contain" class="on">Vừa khung</button>
-        <button data-fit="cover">Lấp đầy</button>
+        <button data-fit="cover" class="on">Lấp đầy</button>
+        <button data-fit="contain">Vừa khung</button>
         <button data-fit="stretch">Kéo giãn</button>
       </div>
     </div>
@@ -255,7 +255,7 @@
       </div>
     </div>
   </div>
-  <p class="note"><b>Vừa khung</b> giữ nguyên toàn bộ ảnh và bù nền hai bên. <b>Lấp đầy</b> cắt bớt phần thừa. <b>Kéo giãn</b> làm méo ảnh — chỉ dùng khi tỉ lệ lệch không đáng kể.</p>
+  <p class="note"><b>Lấp đầy</b> cắt bớt phần thừa. <b>Vừa khung</b> giữ nguyên toàn bộ ảnh và bù nền hai bên. <b>Kéo giãn</b> làm méo ảnh — chỉ dùng khi tỉ lệ lệch không đáng kể.</p>
 </section>
 
 <section>
@@ -310,7 +310,7 @@ const PRESETS = [
 const state = {
   files: [],            // {name, img}
   targets: new Map(),   // key -> {w,h,on}
-  fit: 'contain',
+  fit: 'cover',         // Đã đổi default từ 'contain' sang 'cover'
   fmt: 'png',
   quality: 0.92,
   bg: '#FFFFFF',
@@ -375,7 +375,6 @@ function buildTargets(){
 }
 
 function tile(p){
-  // Đổi type="checkbox" thành type="radio" với cùng 1 name để chỉ cho phép chọn 1
   return `<label class="tile" data-k="${p.w}x${p.h}">
     <input type="radio" name="target_size">
     ${silo(p.w, p.h)}
@@ -490,7 +489,6 @@ function refresh(){
   const chosen = [...state.targets.values()].filter(t => t.on);
   $('#run').disabled = !(state.files.length && chosen.length);
   
-  // Cập nhật text vì lúc này chỉ được chọn 1 kích cỡ
   $('#count').textContent = state.files.length && chosen.length
     ? `${state.files.length} ảnh = ${state.files.length} file xuất ra`
     : '';
