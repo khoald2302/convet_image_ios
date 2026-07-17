@@ -1,3 +1,12 @@
+Tôi đã cập nhật logic đặt tên file zip tự động dựa trên khung hình được chọn khi nén file:
+
+* **Tự động nhận diện thiết bị:** Hệ thống sẽ kiểm tra nhóm kích thước đang được chọn. Nếu thuộc nhóm iPhone (hoặc tỷ lệ màn hình điện thoại 9:16), file nén tải về sẽ tự động gắn hậu tố là `app-store-screenshots-iphone.zip`.
+* **Trường hợp còn lại (iPad / Tự nhập size lớn):** Ngược lại, file nén sẽ mang tên `app-store-screenshots-ipad.zip`.
+* **Đảm bảo tính chính xác:** Tên file zip được chốt dựa trên đúng kích cỡ của các bức ảnh đang có trong kết quả xuất ra, tránh bị nhầm lẫn ngay cả khi bạn bấm chọn ô kích thước khác sau khi đã resize.
+
+Dưới đây là **toàn bộ mã nguồn đã cập nhật**, bạn chỉ cần sao chép và ghi đè vào file `screenshot-resizer.html`:
+
+```html
 <!DOCTYPE html>
 <html lang="vi">
 <head>
@@ -389,7 +398,7 @@ const state = {
   quality: 0.92,
   bg: '#FFFFFF',
   autoBg: true,
-  outputs: [],          // {name, blob, url, w, h, selected}
+  outputs: [],          // {name, blob, url, w, h, selected, type}
 };
 
 const $ = s => document.querySelector(s);
@@ -416,9 +425,19 @@ function buildTargets(){
         ${group.items.map(p => tile(p)).join('')}
       </div>
     </div>`).join('');
-  PRESETS.forEach(gr => gr.items.forEach(p => {
-    state.targets.set(`${p.w}x${p.h}`, { w:p.w, h:p.h, on: !!p.on });
-  }));
+    
+  PRESETS.forEach(gr => {
+    // Nhận diện iPhone hoặc tỷ lệ điện thoại 9:16
+    const isIphone = gr.g.toLowerCase().includes('iphone') || gr.g.includes('9:16');
+    gr.items.forEach(p => {
+      state.targets.set(`${p.w}x${p.h}`, { 
+        w: p.w, 
+        h: p.h, 
+        on: !!p.on, 
+        type: isIphone ? 'iphone' : 'ipad' 
+      });
+    });
+  });
   
   host.addEventListener('click', e => {
     const t = e.target.closest('.tile'); if(!t) return;
@@ -469,10 +488,14 @@ $('#addCustom').addEventListener('click', () => {
     tile.querySelector('input').checked = false;
   });
 
+  // Với size tự nhập: đoán theo tỷ lệ cạnh (nếu thon dài < 0.6 là iPhone, ngược lại là iPad)
+  const isIphoneRatio = Math.min(w, h) / Math.max(w, h) < 0.6;
+  const type = isIphoneRatio ? 'iphone' : 'ipad';
+
   if (state.targets.has(k)) { 
     state.targets.get(k).on = true; 
   } else {
-    state.targets.set(k, { w, h, on:true });
+    state.targets.set(k, { w, h, on:true, type });
     let grid = document.querySelector('#customGrid');
     if (!grid) {
       const g = document.createElement('div');
@@ -658,7 +681,8 @@ $('#run').addEventListener('click', async () => {
       const name = `${base}_${t.w}x${t.h}px.${ext}`;
       const idx = state.outputs.length;
       
-      state.outputs.push({ name, blob, url, w:t.w, h:t.h, selected: true });
+      // Lưu thêm type ('iphone' hoặc 'ipad') vào từng output
+      state.outputs.push({ name, blob, url, w:t.w, h:t.h, selected: true, type: t.type });
       $('#results').insertAdjacentHTML('beforeend', `
         <div class="card" data-idx="${idx}">
           <div class="thumb" data-url="${url}" data-name="${escapeHtml(name)}" title="Bấm để xem ảnh lớn">
@@ -702,7 +726,7 @@ $('#selectAll').addEventListener('change', e => {
   updateSelectionUI();
 });
 
-/* Tải file (.zip) với các ảnh được chọn */
+/* Tải file (.zip) với hậu tố tự động theo thiết bị */
 $('#zip').addEventListener('click', async () => {
   const selectedOutputs = state.outputs.filter(o => o.selected);
   if (!selectedOutputs.length) return;
@@ -715,9 +739,14 @@ $('#zip').addEventListener('click', async () => {
   const zip = new JSZip();
   selectedOutputs.forEach(o => zip.file(o.name, o.blob));
   const blob = await zip.generateAsync({ type:'blob' });
+  
+  // Xác định hậu tố tên file zip dựa trên loại thiết bị của ảnh đầu tiên trong danh sách tải
+  const firstSel = selectedOutputs[0] || state.outputs[0];
+  const suffix = (firstSel && firstSel.type === 'iphone') ? '-iphone' : '-ipad';
+  
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'app-store-screenshots.zip';
+  a.download = `app-store-screenshots${suffix}.zip`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   updateSelectionUI(); 
@@ -754,7 +783,7 @@ function closeModal() {
 }
 
 $('#results').addEventListener('click', e => {
-  if (e.target.closest('.card-chk')) return; // Ngăn chặn mở preview khi bấm vào Checkbox
+  if (e.target.closest('.card-chk')) return; 
   const thumb = e.target.closest('.thumb');
   if (!thumb) return;
   openModal(thumb.dataset.url, thumb.dataset.name);
@@ -822,3 +851,5 @@ refresh();
 </script>
 </body>
 </html>
+
+```
