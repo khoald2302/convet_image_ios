@@ -642,8 +642,82 @@ function draw(img, tw, th, bg){
   ctx.drawImage(src, sx * k, sy * k, sw * k, sh * k, dx, dy, dw, dh);
   return c;
 }
-const toBlob = (c) => new Promise(r => c.toBlob(r, state.fmt === 'jpeg' ? 'image/jpeg' : 'image/png',
-                                                state.fmt === 'jpeg' ? state.quality : undefined));
+/* ============ PNG không alpha ============ */
+/* canvas.toBlob('image/png') luôn ghi RGBA (IHDR color type 6) dù mọi pixel đều đặc,
+   và App Store Connect từ chối ảnh có kênh alpha. Tự mã hoá PNG RGB (color type 2). */
+const CRC_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; }
+  return t;
+})();
+function crc32(bytes){
+  let c = 0xFFFFFFFF;
+  for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+function pngChunk(type, data){
+  const out = new Uint8Array(12 + data.length), v = new DataView(out.buffer);
+  v.setUint32(0, data.length);
+  for (let i = 0; i < 4; i++) out[4 + i] = type.charCodeAt(i);
+  out.set(data, 8);
+  v.setUint32(8 + data.length, crc32(out.subarray(4, 8 + data.length)));
+  return out;
+}
+/* mỗi hàng chọn bộ lọc có tổng |sai khác| nhỏ nhất — cùng heuristic với libpng, nén gọn hơn hẳn lọc None */
+function predict(f, a, b, c){
+  if (f === 0) return 0;
+  if (f === 1) return a;
+  if (f === 2) return b;
+  if (f === 3) return (a + b) >> 1;
+  const pa = Math.abs(b - c), pb = Math.abs(a - c), pc = Math.abs(a + b - 2 * c);
+  return pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
+}
+function filterRows(rgb, w, h){
+  const bpp = 3, stride = w * bpp, out = new Uint8Array(h * (stride + 1)), zero = new Uint8Array(stride);
+  for (let y = 0; y < h; y++) {
+    const cur = rgb.subarray(y * stride, (y + 1) * stride);
+    const up = y ? rgb.subarray((y - 1) * stride, y * stride) : zero;
+    let best = 0, bestSum = Infinity;
+    for (let f = 0; f < 5; f++) {
+      let sum = 0;
+      for (let i = 0; i < stride && sum < bestSum; i++) {
+        const v = (cur[i] - predict(f, i >= bpp ? cur[i - bpp] : 0, up[i], i >= bpp ? up[i - bpp] : 0)) & 0xFF;
+        sum += v < 128 ? v : 256 - v;
+      }
+      if (sum < bestSum) { bestSum = sum; best = f; }
+    }
+    const row = y * (stride + 1);
+    out[row] = best;
+    for (let i = 0; i < stride; i++)
+      out[row + 1 + i] = (cur[i] - predict(best, i >= bpp ? cur[i - bpp] : 0, up[i], i >= bpp ? up[i - bpp] : 0)) & 0xFF;
+  }
+  return out;
+}
+async function encodeRgbPng(canvas){
+  const w = canvas.width, h = canvas.height;
+  const rgba = canvas.getContext('2d').getImageData(0, 0, w, h).data;
+  const rgb = new Uint8Array(w * h * 3);
+  for (let i = 0, j = 0; i < rgba.length; i += 4, j += 3) { rgb[j] = rgba[i]; rgb[j + 1] = rgba[i + 1]; rgb[j + 2] = rgba[i + 2]; }
+  const raw = filterRows(rgb, w, h);
+  // 'deflate' của CompressionStream là zlib — đúng định dạng IDAT cần
+  const idat = new Uint8Array(await new Response(new Blob([raw]).stream().pipeThrough(new CompressionStream('deflate'))).arrayBuffer());
+  const ihdr = new Uint8Array(13), v = new DataView(ihdr.buffer);
+  v.setUint32(0, w); v.setUint32(4, h);
+  ihdr.set([8, 2, 0, 0, 0], 8);                 // 8-bit, RGB, không interlace
+  return new Blob([
+    new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]),
+    pngChunk('IHDR', ihdr),
+    pngChunk('sRGB', new Uint8Array([0])),     // canvas vẽ trong sRGB
+    pngChunk('IDAT', idat),
+    pngChunk('IEND', new Uint8Array(0)),
+  ], { type: 'image/png' });
+}
+const canEncodeRgbPng = typeof CompressionStream === 'function';
+const toBlob = (c) => {
+  if (state.fmt === 'png' && canEncodeRgbPng) return encodeRgbPng(c);
+  return new Promise(r => c.toBlob(r, state.fmt === 'jpeg' ? 'image/jpeg' : 'image/png',
+                                   state.fmt === 'jpeg' ? state.quality : undefined));
+};
 
 /* Cập nhật trạng thái hiển thị của các nút tải theo số lượng được chọn */
 function updateSelectionUI() {
@@ -697,7 +771,9 @@ $('#run').addEventListener('click', async () => {
         </div>`);
     }
   }
-  $('#status').textContent = `Xong — ${state.outputs.length} file.`;
+  $('#status').textContent = state.fmt === 'png' && !canEncodeRgbPng
+    ? `Xong — ${state.outputs.length} file. Trình duyệt này không bỏ được kênh alpha của PNG — chọn JPEG trước khi nộp App Store.`
+    : `Xong — ${state.outputs.length} file.`;
   $('#run').disabled = false;
   updateSelectionUI();
 });
